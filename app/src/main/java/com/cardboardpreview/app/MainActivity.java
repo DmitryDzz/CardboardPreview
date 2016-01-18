@@ -1,6 +1,7 @@
 package com.cardboardpreview.app;
 
 import android.os.Bundle;
+import android.util.Log;
 import com.google.vrtoolkit.cardboard.CardboardActivity;
 import com.google.vrtoolkit.cardboard.CardboardView;
 
@@ -26,12 +27,18 @@ public class MainActivity extends CardboardActivity {
     @Override
     protected void onPause() {
         super.onPause();
-//        mStereoRenderer.pause();
+        mStereoRenderer.stop();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-//        mStereoRenderer.resume();
+        mStereoRenderer.start();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        Log.d("++++ MainActivity ++++", "onWindowFocusChanged(hasFocus=" + hasFocus + ")");
+        super.onWindowFocusChanged(hasFocus);
     }
 }

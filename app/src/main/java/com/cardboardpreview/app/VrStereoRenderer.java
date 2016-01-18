@@ -29,14 +29,17 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     private static final String TAG = "++++"; //todo: Change ++++ to regular name
     private final static int FLOAT_SIZE_BYTES = 4;
 
+//    private enum State { STOPPED, PREPARING, RENDERING };
+//    private State mState = State.STOPPED;
+    private volatile boolean mIsReady;
+
     private final Context mContext;
     private final CardboardView mCardboardView;
 
     private final Handler mHandler = new Handler();
 
+    @SuppressWarnings("deprecation")
     private Camera mCamera;
-
-    private AtomicBoolean mPreviewEnabled = new AtomicBoolean();
 
     private int mGLProgram;
     private int mTexHandle;
@@ -69,17 +72,18 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mRotateMatrix = new float[16];
     }
 
-    public void pause() {
-        stopPreview();
-    }
+    public synchronized void start() {
+        if (mIsReady) {
+            return;
+        }
 
-    public void resume() {
-        startPreview();
-    }
-
-    @Override
-    public void onSurfaceCreated(EGLConfig eglConfig) {
-        startPreview();
+        @SuppressWarnings("deprecation")
+        final Camera camera = openFacingBackCamera();
+        if (camera == null) {
+            return;
+        }
+        mCamera = camera;
+        Log.d(TAG, "Camera.open");
 
         mGLProgram = createProgram(R.raw.vertex, R.raw.fragment);
         mTexHandle = GLES20.glGetUniformLocation(mGLProgram, "s_texture");
@@ -96,21 +100,8 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         GLES20.glVertexAttribPointer(mTriangleVerticesHandle, 2, GLES20.GL_FLOAT,
                 false, 0, mQuadVertices);
         checkGlError("initialization");
-    }
 
-    @Override
-    public void onSurfaceChanged(int width, int height) {
 //        Gdx.gl.glViewport(0, 0, width, height);  ?????????????
-
-        if (mCamera == null) {
-            Log.e(TAG, "mCamera = null");
-        }
-
-        try {
-            mCamera.stopPreview();
-        } catch (Exception ignored) {
-            ignored.printStackTrace();
-        }
 
 //        changeCameraParameters();
 
@@ -122,7 +113,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
                 //todo: !!!!
 //                mCameraFrameCount.incrementAndGet();
                 if (mCardboardView != null) {
-                    Log.d(TAG, "========================");
+                    Log.d(TAG, "onFrameAvailable");
                     mCardboardView.requestRender();
                 }
             }
@@ -137,6 +128,47 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             e.printStackTrace();
         }
         mCamera.startPreview();
+
+        mIsReady = true;
+    }
+
+    @SuppressWarnings("deprecation")
+    private Camera openFacingBackCamera() {
+        final int cameraCount = Camera.getNumberOfCameras();
+        final Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
+        for (int cameraIndex = 0; cameraIndex < cameraCount; cameraIndex++) {
+            Camera.getCameraInfo(cameraIndex, cameraInfo);
+            if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
+                return Camera.open(cameraIndex);
+            }
+        }
+        return null;
+    }
+
+    public synchronized void stop() {
+        if (!mIsReady) {
+            return;
+        }
+
+        mIsReady = false;
+        mSurfaceTexture.release();
+        try {
+            mCamera.setPreviewTexture(null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        mCamera.stopPreview();
+        mCamera.release();
+        mCamera = null;
+        Log.d(TAG, "Camera.release");
+    }
+
+    @Override
+    public void onSurfaceCreated(EGLConfig eglConfig) {
+    }
+
+    @Override
+    public void onSurfaceChanged(int width, int height) {
     }
 
     @Override
@@ -155,65 +187,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     @Override
     public void onRendererShutdown() {
         // Doesn't work :(
-        stopPreview();
-    }
-
-/*
-    private void startPreviewAsync() {
-        mHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                startPreview();
-            }
-        });
-    }
-
-    private void stopPreviewAsync() {
-        mHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                stopPreview();
-            }
-        });
-    }
-*/
-
-    private void startPreview() {
-        if (mPreviewEnabled.get()) {
-            return;
-        }
-
-        // Looking for facing back camera:
-        final int cameraCount = Camera.getNumberOfCameras();
-        final Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
-        for (int cameraIndex = 0; cameraIndex < cameraCount; cameraIndex++) {
-            Camera.getCameraInfo(cameraIndex, cameraInfo);
-            if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
-                mCamera = Camera.open(cameraIndex);
-                mPreviewEnabled.set(true);
-                Log.d(TAG, "Camera.open");
-                break;
-            }
-        }
-    }
-
-    private void stopPreview() {
-//        Log.d(TAG, "===================================================");
-        if (!mPreviewEnabled.get()) {
-            return;
-        }
-
-        mPreviewEnabled.set(false);
-        mSurfaceTexture.release();
-        try {
-            mCamera.setPreviewTexture(null);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        mCamera.stopPreview();
-        mCamera.release();
-        mCamera = null;
-        Log.d(TAG, "Camera.release");
     }
 
     private String readRawTextFile(int resId) {
