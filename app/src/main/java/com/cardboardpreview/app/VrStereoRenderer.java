@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  *
@@ -61,6 +61,10 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     private final float[] mTransformMatrix;
     private final float[] mRotateMatrix;
 
+    AtomicInteger mReportedFrameCount = new AtomicInteger();
+    AtomicInteger mCameraFrameCount = new AtomicInteger();
+    private int mLastCameraFrameCount;
+
     public VrStereoRenderer(final Context context, final CardboardView cardboardView) {
         mContext = context;
         mCardboardView = cardboardView;
@@ -78,6 +82,8 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mTransformMatrix = new float[16];
 //        mRotateMatrix = new float[16];
         mRotateMatrix = new float[]{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+
+        mLastCameraFrameCount = mCameraFrameCount.get();
     }
 
     public synchronized void start() {
@@ -150,24 +156,25 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 //", w=" + eye.getViewport().width + ", h=" + eye.getViewport().height +
 //", x=" + eye.getViewport().x + ", y=" + eye.getViewport().y);
 
-/*
         int cameraFrameCount = mCameraFrameCount.get();
         if (mLastCameraFrameCount != cameraFrameCount) {
             mReportedFrameCount.incrementAndGet();
             mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mTransformMatrix);
+Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
             GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
             GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
             checkGlError("glUniformMatrix4fv");
             mLastCameraFrameCount = cameraFrameCount;
         }
-*/
+/*
         mSurfaceTexture.updateTexImage();
         mSurfaceTexture.getTransformMatrix(mTransformMatrix);
         GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
         checkGlError("glUniformMatrix4fv #1");
         GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
         checkGlError("glUniformMatrix4fv #2");
+*/
 /*
         mSurfaceTexture.updateTexImage();
         GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, eye.getPerspective(Z_NEAR, Z_FAR), 0);
@@ -228,7 +235,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
                 false, 0, mQuadVertices);
         checkGlError("initialization #2");
 
-//        Gdx.gl.glViewport(0, 0, width, height);  ?????????????
+        GLES20.glViewport(0, 0, mViewWidth, mViewHeight); //?????????????
 
 //        changeCameraParameters();
 
@@ -237,8 +244,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
             @Override
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-                //todo: !!!!
-//                mCameraFrameCount.incrementAndGet();
+                mCameraFrameCount.incrementAndGet();
                 if (mCardboardView != null) {
                     Log.d(TAG, "onFrameAvailable");
                     mCardboardView.requestRender();
@@ -258,7 +264,17 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
         mIsReady = true;
         mIsStarting = false;
+        mReportedFrameCount.set(0);
     }
+
+/*
+    private void changeCameraParameters() {
+        @SuppressWarnings("deprecation")
+        final Camera.Parameters cameraParameters = mCamera.getParameters();
+        cameraParameters.setPreviewSize(640, 480); //todo: ????????????
+        mCamera.setParameters(cameraParameters);
+    }
+*/
 
     @SuppressWarnings("deprecation")
     private Camera openFacingBackCamera() {
@@ -313,7 +329,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         //noinspection LoopStatementThatDoesntLoop
         while ((error = GLES20.glGetError()) != GLES20.GL_NO_ERROR) {
             Log.e(TAG, op + ": glError " + error);
-            throw new RuntimeException(op + ": glError " + error);
+//            throw new RuntimeException(op + ": glError " + error);
         }
     }
 
