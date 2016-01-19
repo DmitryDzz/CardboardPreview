@@ -4,10 +4,12 @@
     android:layout_height="match_parent"
     tools:context="${relativePackage}.${activityClass}">
 
-    <!--<TextView-->
-        <!--android:text="@string/hello_world"-->
-        <!--android:layout_width="wrap_content"-->
-        <!--android:layout_height="wrap_content" />-->
+<!--
+    <TextView
+        android:text="@string/hello_world"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+-->
 
     <com.google.vrtoolkit.cardboard.CardboardView
             android:id="@+id/cardboard_view"

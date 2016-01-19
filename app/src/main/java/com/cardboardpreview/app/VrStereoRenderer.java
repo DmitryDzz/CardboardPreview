@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -28,9 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class VrStereoRenderer implements CardboardView.StereoRenderer {
     private static final String TAG = "++++"; //todo: Change ++++ to regular name
     private final static int FLOAT_SIZE_BYTES = 4;
+    private static final int GL_TEXTURE_EXTERNAL_OES = 0x8D65;
+    private static final float Z_NEAR = 0.1f;
+    private static final float Z_FAR = 100.0f;
 
-//    private enum State { STOPPED, PREPARING, RENDERING };
-//    private State mState = State.STOPPED;
+    private volatile boolean mIsStarting;
     private volatile boolean mIsReady;
 
     private final Context mContext;
@@ -40,6 +43,10 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
     @SuppressWarnings("deprecation")
     private Camera mCamera;
+
+    private boolean mSurfaceChanged;
+    private int mViewWidth;
+    private int mViewHeight;
 
     private int mGLProgram;
     private int mTexHandle;
@@ -69,14 +76,133 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mQuadVertices.put(quadVertices).position(0);
 
         mTransformMatrix = new float[16];
-        mRotateMatrix = new float[16];
+//        mRotateMatrix = new float[16];
+        mRotateMatrix = new float[]{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
     }
 
     public synchronized void start() {
-        if (mIsReady) {
+        if (mIsReady || mIsStarting) {
+            return;
+        }
+        mIsStarting = true;
+        mSurfaceChanged = false;
+    }
+
+    public synchronized void stop() {
+        if (!mIsReady) {
             return;
         }
 
+        mIsReady = false;
+        mIsStarting = false;
+        mSurfaceChanged = false;
+
+        try {
+            mCamera.setPreviewTexture(null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        mCamera.stopPreview();
+        mCamera.release();
+        mCamera = null;
+
+        mSurfaceTexture.release();
+
+        Log.d(TAG, "Camera.release");
+    }
+
+    @Override
+    public void onSurfaceCreated(EGLConfig eglConfig) {
+        mSurfaceChanged = false;
+    }
+
+    @Override
+    public void onSurfaceChanged(int width, int height) {
+        mViewWidth = width;
+        mViewHeight = height;
+        mSurfaceChanged = true;
+    }
+
+    @Override
+    public void onNewFrame(HeadTransform headTransform) {
+    }
+
+    @Override
+    public void onDrawEye(Eye eye) {
+        if (!mIsReady && mIsStarting) {
+            doStart();
+        }
+
+        GLES20.glUseProgram(mGLProgram);
+        checkGlError("glUseProgram");
+//        GLES20.glViewport(0, 0, mViewWidth, mViewHeight);
+        final Viewport viewport = eye.getViewport();
+        GLES20.glViewport(viewport.x, viewport.y, viewport.width, viewport.y);
+        checkGlError("glViewport");
+
+        if (!(mIsReady  && mSurfaceChanged)) {
+            GLES20.glClearColor(0, 0, 0, 0);
+            return;
+        }
+
+//Log.d(TAG,
+//"W=" + mViewWidth + ", H=" + mViewHeight +
+//", w=" + eye.getViewport().width + ", h=" + eye.getViewport().height +
+//", x=" + eye.getViewport().x + ", y=" + eye.getViewport().y);
+
+/*
+        int cameraFrameCount = mCameraFrameCount.get();
+        if (mLastCameraFrameCount != cameraFrameCount) {
+            mReportedFrameCount.incrementAndGet();
+            mSurfaceTexture.updateTexImage();
+            mSurfaceTexture.getTransformMatrix(mTransformMatrix);
+            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
+            GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
+            checkGlError("glUniformMatrix4fv");
+            mLastCameraFrameCount = cameraFrameCount;
+        }
+*/
+        mSurfaceTexture.updateTexImage();
+        mSurfaceTexture.getTransformMatrix(mTransformMatrix);
+        GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
+        checkGlError("glUniformMatrix4fv #1");
+        GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
+        checkGlError("glUniformMatrix4fv #2");
+/*
+        mSurfaceTexture.updateTexImage();
+        GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, eye.getPerspective(Z_NEAR, Z_FAR), 0);
+        checkGlError("glUniformMatrix4fv #1");
+        GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
+        checkGlError("glUniformMatrix4fv #2");
+*/
+
+        GLES20.glDisable(GLES20.GL_BLEND);
+        checkGlError("setup #1");
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+        checkGlError("setup #2");
+        GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, mTextureName);
+        checkGlError("setup #3");
+        GLES20.glUniform1i(mTexHandle, 0);
+        checkGlError("setup #4");
+        GLES20.glEnableVertexAttribArray(mTexCoordHandle);
+        checkGlError("setup #5");
+        GLES20.glEnableVertexAttribArray(mTriangleVerticesHandle);
+        checkGlError("setup #6");
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4);
+        checkGlError("glDrawArrays");
+    }
+
+    @Override
+    public void onFinishFrame(Viewport viewport) {
+    }
+
+    @Override
+    public void onRendererShutdown() {
+        // Doesn't work :(
+        mSurfaceChanged = false;
+    }
+
+    private void doStart() {
         @SuppressWarnings("deprecation")
         final Camera camera = openFacingBackCamera();
         if (camera == null) {
@@ -95,17 +221,18 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         GLES20.glGenTextures(1, textures, 0);
         mTextureName = textures[0];
         GLES20.glUseProgram(mGLProgram);
+        checkGlError("initialization #1");
         GLES20.glVertexAttribPointer(mTexCoordHandle, 2, GLES20.GL_FLOAT,
                 false, 0, mTextureVertices);
         GLES20.glVertexAttribPointer(mTriangleVerticesHandle, 2, GLES20.GL_FLOAT,
                 false, 0, mQuadVertices);
-        checkGlError("initialization");
+        checkGlError("initialization #2");
 
 //        Gdx.gl.glViewport(0, 0, width, height);  ?????????????
 
 //        changeCameraParameters();
 
-        SurfaceTexture oldSurfaceTexture = mSurfaceTexture;
+        final SurfaceTexture oldSurfaceTexture = mSurfaceTexture;
         mSurfaceTexture = new SurfaceTexture(mTextureName);
         mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
             @Override
@@ -130,6 +257,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mCamera.startPreview();
 
         mIsReady = true;
+        mIsStarting = false;
     }
 
     @SuppressWarnings("deprecation")
@@ -143,50 +271,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             }
         }
         return null;
-    }
-
-    public synchronized void stop() {
-        if (!mIsReady) {
-            return;
-        }
-
-        mIsReady = false;
-        mSurfaceTexture.release();
-        try {
-            mCamera.setPreviewTexture(null);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        mCamera.stopPreview();
-        mCamera.release();
-        mCamera = null;
-        Log.d(TAG, "Camera.release");
-    }
-
-    @Override
-    public void onSurfaceCreated(EGLConfig eglConfig) {
-    }
-
-    @Override
-    public void onSurfaceChanged(int width, int height) {
-    }
-
-    @Override
-    public void onNewFrame(HeadTransform headTransform) {
-    }
-
-    @Override
-    public void onDrawEye(Eye eye) {
-
-    }
-
-    @Override
-    public void onFinishFrame(Viewport viewport) {
-    }
-
-    @Override
-    public void onRendererShutdown() {
-        // Doesn't work :(
     }
 
     private String readRawTextFile(int resId) {

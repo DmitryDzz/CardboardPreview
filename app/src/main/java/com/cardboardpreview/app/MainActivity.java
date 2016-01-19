@@ -27,12 +27,14 @@ public class MainActivity extends CardboardActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        Log.d("++++", "onPause");
         mStereoRenderer.stop();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        Log.d("++++", "onResume");
         mStereoRenderer.start();
     }
 
