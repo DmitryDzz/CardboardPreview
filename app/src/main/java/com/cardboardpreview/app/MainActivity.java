@@ -14,7 +14,7 @@ public class MainActivity extends CardboardActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        CardboardView cardboardView = (CardboardView) findViewById(R.id.cardboard_view);
+        final CardboardView cardboardView = (CardboardView) findViewById(R.id.cardboard_view);
 
         mStereoRenderer = new VrStereoRenderer(this, cardboardView);
 

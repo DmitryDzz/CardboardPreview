@@ -162,7 +162,8 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mTransformMatrix);
 Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
-            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
+//            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
+            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mRotateMatrix, 0); //todo delete
             GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
             checkGlError("glUniformMatrix4fv");
             mLastCameraFrameCount = cameraFrameCount;
@@ -261,6 +262,7 @@ Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
             e.printStackTrace();
         }
         mCamera.startPreview();
+        Log.d(TAG, "Camera.startPreview");
 
         mIsReady = true;
         mIsStarting = false;

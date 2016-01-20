@@ -6,5 +6,5 @@ uniform mat4 u_rotation;
 
 void main() {
     gl_Position = vPosition;
-    v_texCoord = vec2(u_xform * u_rotation * vec4(a_texCoord, 1.0, 1.0));
+    v_texCoord = vec2(u_xform * u_rotation * vec4(a_texCoord, 0.0, 1.0));
 }
