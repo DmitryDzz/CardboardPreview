@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.opengl.GLES20;
-import android.os.Handler;
 import android.util.Log;
 import com.google.vrtoolkit.cardboard.CardboardView;
 import com.google.vrtoolkit.cardboard.Eye;
@@ -19,7 +18,6 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -30,16 +28,14 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     private static final String TAG = "++++"; //todo: Change ++++ to regular name
     private final static int FLOAT_SIZE_BYTES = 4;
     private static final int GL_TEXTURE_EXTERNAL_OES = 0x8D65;
-    private static final float Z_NEAR = 0.1f;
-    private static final float Z_FAR = 100.0f;
+//    private static final float Z_NEAR = 0.1f;
+//    private static final float Z_FAR = 100.0f;
 
     private volatile boolean mIsStarting;
     private volatile boolean mIsReady;
 
     private final Context mContext;
     private final CardboardView mCardboardView;
-
-    private final Handler mHandler = new Handler();
 
     @SuppressWarnings("deprecation")
     private Camera mCamera;
@@ -54,16 +50,15 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     private int mTriangleVerticesHandle;
     private int mTransformHandle;
     private int mRotateHandle;
-    private int mTextureName;
     private SurfaceTexture mSurfaceTexture = null;
     private final FloatBuffer mTextureVertices;
     private final FloatBuffer mQuadVertices;
     private final float[] mTransformMatrix;
     private final float[] mRotateMatrix;
 
-    AtomicInteger mReportedFrameCount = new AtomicInteger();
-    AtomicInteger mCameraFrameCount = new AtomicInteger();
-    private int mLastCameraFrameCount;
+    private AtomicInteger mCameraFrameCount = new AtomicInteger();
+    private int mLastLeftEyeFrameCount;
+    private int mLastRightEyeFrameCount;
 
     public VrStereoRenderer(final Context context, final CardboardView cardboardView) {
         mContext = context;
@@ -80,16 +75,18 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mQuadVertices.put(quadVertices).position(0);
 
         mTransformMatrix = new float[16];
-//        mRotateMatrix = new float[16];
         mRotateMatrix = new float[]{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-
-        mLastCameraFrameCount = mCameraFrameCount.get();
     }
 
     public synchronized void start() {
         if (mIsReady || mIsStarting) {
             return;
         }
+
+        mCameraFrameCount.set(0);
+        mLastLeftEyeFrameCount = 0;
+        mLastRightEyeFrameCount = 0;
+
         mIsStarting = true;
         mSurfaceChanged = false;
     }
@@ -139,65 +136,64 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             doStart();
         }
 
-        GLES20.glUseProgram(mGLProgram);
-        checkGlError("glUseProgram");
-//        GLES20.glViewport(0, 0, mViewWidth, mViewHeight);
-        final Viewport viewport = eye.getViewport();
-        GLES20.glViewport(viewport.x, viewport.y, viewport.width, viewport.y);
-        checkGlError("glViewport");
-
         if (!(mIsReady  && mSurfaceChanged)) {
             GLES20.glClearColor(0, 0, 0, 0);
             return;
         }
 
-//Log.d(TAG,
-//"W=" + mViewWidth + ", H=" + mViewHeight +
-//", w=" + eye.getViewport().width + ", h=" + eye.getViewport().height +
-//", x=" + eye.getViewport().x + ", y=" + eye.getViewport().y);
+        final int cameraFrameCount = mCameraFrameCount.get();
+        if ((mLastLeftEyeFrameCount != cameraFrameCount) || (mLastRightEyeFrameCount != cameraFrameCount)) {
+            GLES20.glUseProgram(mGLProgram);
+            checkGlError("glUseProgram");
+//        GLES20.glViewport(0, 0, mViewWidth, mViewHeight);
+//        final Viewport viewport = eye.getViewport();
+//        GLES20.glViewport(viewport.x, viewport.y, viewport.width, viewport.y);
+//        checkGlError("glViewport");
 
-        int cameraFrameCount = mCameraFrameCount.get();
-        if (mLastCameraFrameCount != cameraFrameCount) {
-            mReportedFrameCount.incrementAndGet();
+//        int cameraFrameCount = mCameraFrameCount.get();
+//        if (mLastCameraFrameCount != cameraFrameCount) {
+//            mReportedFrameCount.incrementAndGet();
             mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mTransformMatrix);
-Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
-//            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
-            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mRotateMatrix, 0); //todo delete
+//Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
+            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
+//            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mRotateMatrix, 0); //todo delete
             GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
+//            GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, eye.getPerspective(Z_NEAR, Z_FAR), 0);
             checkGlError("glUniformMatrix4fv");
-            mLastCameraFrameCount = cameraFrameCount;
-        }
-/*
-        mSurfaceTexture.updateTexImage();
-        mSurfaceTexture.getTransformMatrix(mTransformMatrix);
-        GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
-        checkGlError("glUniformMatrix4fv #1");
-        GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
-        checkGlError("glUniformMatrix4fv #2");
-*/
-/*
-        mSurfaceTexture.updateTexImage();
-        GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, eye.getPerspective(Z_NEAR, Z_FAR), 0);
-        checkGlError("glUniformMatrix4fv #1");
-        GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
-        checkGlError("glUniformMatrix4fv #2");
-*/
+//            mLastCameraFrameCount = cameraFrameCount;
+//        }
 
-        GLES20.glDisable(GLES20.GL_BLEND);
-        checkGlError("setup #1");
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-        checkGlError("setup #2");
-        GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, mTextureName);
-        checkGlError("setup #3");
-        GLES20.glUniform1i(mTexHandle, 0);
-        checkGlError("setup #4");
-        GLES20.glEnableVertexAttribArray(mTexCoordHandle);
-        checkGlError("setup #5");
-        GLES20.glEnableVertexAttribArray(mTriangleVerticesHandle);
-        checkGlError("setup #6");
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4);
-        checkGlError("glDrawArrays");
+//        GLES20.glDisable(GLES20.GL_BLEND);
+//        checkGlError("setup #1");
+
+            GLES20.glVertexAttribPointer(mTexCoordHandle, 2, GLES20.GL_FLOAT,
+                    false, 0, mTextureVertices);
+            GLES20.glVertexAttribPointer(mTriangleVerticesHandle, 2, GLES20.GL_FLOAT,
+                    false, 0, mQuadVertices);
+            GLES20.glUniform1i(mTexHandle, 0);
+            checkGlError("setup #4");
+            GLES20.glEnableVertexAttribArray(mTexCoordHandle);
+            checkGlError("setup #5");
+            GLES20.glEnableVertexAttribArray(mTriangleVerticesHandle);
+            checkGlError("setup #6");
+
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4);
+            checkGlError("glDrawArrays");
+
+            switch (eye.getType()) {
+                case Eye.Type.MONOCULAR:
+                    mLastLeftEyeFrameCount = cameraFrameCount;
+                    mLastRightEyeFrameCount = cameraFrameCount;
+                    break;
+                case Eye.Type.LEFT:
+                    mLastLeftEyeFrameCount = cameraFrameCount;
+                    break;
+                case Eye.Type.RIGHT:
+                    mLastRightEyeFrameCount = cameraFrameCount;
+                    break;
+            }
+        }
     }
 
     @Override
@@ -208,6 +204,24 @@ Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
     public void onRendererShutdown() {
         // Doesn't work :(
         mSurfaceChanged = false;
+    }
+
+    private int createTexture()
+    {
+        int[] texture = new int[1];
+        GLES20.glGenTextures(1,texture, 0);
+        checkGlError("createTexture #1");
+        GLES20.glBindTexture(GL_TEXTURE_EXTERNAL_OES, texture[0]);
+        checkGlError("createTexture #2");
+        GLES20.glTexParameterf(GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR);
+        checkGlError("createTexture #3");
+        GLES20.glTexParameterf(GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR);
+        checkGlError("createTexture #4");
+        GLES20.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE);
+        checkGlError("createTexture #5");
+        GLES20.glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE);
+        checkGlError("createTexture #6");
+        return texture[0];
     }
 
     private void doStart() {
@@ -225,29 +239,21 @@ Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
         mTriangleVerticesHandle = GLES20.glGetAttribLocation(mGLProgram, "vPosition");
         mTransformHandle = GLES20.glGetUniformLocation(mGLProgram, "u_xform");
         mRotateHandle = GLES20.glGetUniformLocation(mGLProgram, "u_rotation");
-        int[] textures = new int[1];
-        GLES20.glGenTextures(1, textures, 0);
-        mTextureName = textures[0];
         GLES20.glUseProgram(mGLProgram);
         checkGlError("initialization #1");
-        GLES20.glVertexAttribPointer(mTexCoordHandle, 2, GLES20.GL_FLOAT,
-                false, 0, mTextureVertices);
-        GLES20.glVertexAttribPointer(mTriangleVerticesHandle, 2, GLES20.GL_FLOAT,
-                false, 0, mQuadVertices);
-        checkGlError("initialization #2");
 
         GLES20.glViewport(0, 0, mViewWidth, mViewHeight); //?????????????
 
 //        changeCameraParameters();
 
         final SurfaceTexture oldSurfaceTexture = mSurfaceTexture;
-        mSurfaceTexture = new SurfaceTexture(mTextureName);
+        mSurfaceTexture = new SurfaceTexture(createTexture());
         mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
             @Override
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
                 mCameraFrameCount.incrementAndGet();
                 if (mCardboardView != null) {
-                    Log.d(TAG, "onFrameAvailable");
+//                    Log.d(TAG, "onFrameAvailable " + Thread.currentThread().getId());
                     mCardboardView.requestRender();
                 }
             }
@@ -266,7 +272,6 @@ Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
 
         mIsReady = true;
         mIsStarting = false;
-        mReportedFrameCount.set(0);
     }
 
 /*
