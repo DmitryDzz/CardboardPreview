@@ -18,6 +18,7 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -138,48 +139,43 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
         if (!(mIsReady  && mSurfaceChanged)) {
             GLES20.glClearColor(0, 0, 0, 0);
+            checkGlError("draw eye [glClearColor]");
             return;
         }
 
         final int cameraFrameCount = mCameraFrameCount.get();
         if ((mLastLeftEyeFrameCount != cameraFrameCount) || (mLastRightEyeFrameCount != cameraFrameCount)) {
             GLES20.glUseProgram(mGLProgram);
-            checkGlError("glUseProgram");
-//        GLES20.glViewport(0, 0, mViewWidth, mViewHeight);
-//        final Viewport viewport = eye.getViewport();
-//        GLES20.glViewport(viewport.x, viewport.y, viewport.width, viewport.y);
-//        checkGlError("glViewport");
+            checkGlError("draw eye [glUseProgram]");
 
-//        int cameraFrameCount = mCameraFrameCount.get();
-//        if (mLastCameraFrameCount != cameraFrameCount) {
-//            mReportedFrameCount.incrementAndGet();
             mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mTransformMatrix);
 //Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
             GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
+            checkGlError("draw eye [glUniformMatrix4fv #1]");
 //            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mRotateMatrix, 0); //todo delete
             GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
 //            GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, eye.getPerspective(Z_NEAR, Z_FAR), 0);
-            checkGlError("glUniformMatrix4fv");
-//            mLastCameraFrameCount = cameraFrameCount;
-//        }
+            checkGlError("draw eye [glUniformMatrix4fv #2]");
 
 //        GLES20.glDisable(GLES20.GL_BLEND);
 //        checkGlError("setup #1");
 
             GLES20.glVertexAttribPointer(mTexCoordHandle, 2, GLES20.GL_FLOAT,
                     false, 0, mTextureVertices);
+            checkGlError("draw eye [glVertexAttribPointer #1]");
             GLES20.glVertexAttribPointer(mTriangleVerticesHandle, 2, GLES20.GL_FLOAT,
                     false, 0, mQuadVertices);
+            checkGlError("draw eye [glVertexAttribPointer #2]");
             GLES20.glUniform1i(mTexHandle, 0);
-            checkGlError("setup #4");
+            checkGlError("draw eye [glUniform1i]");
             GLES20.glEnableVertexAttribArray(mTexCoordHandle);
-            checkGlError("setup #5");
+            checkGlError("draw eye [glEnableVertexAttribArray #1]");
             GLES20.glEnableVertexAttribArray(mTriangleVerticesHandle);
-            checkGlError("setup #6");
+            checkGlError("draw eye [glEnableVertexAttribArray #2]");
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, 4);
-            checkGlError("glDrawArrays");
+            checkGlError("draw eye [glDrawArrays]");
 
             switch (eye.getType()) {
                 case Eye.Type.MONOCULAR:
@@ -244,7 +240,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
         GLES20.glViewport(0, 0, mViewWidth, mViewHeight); //?????????????
 
-//        changeCameraParameters();
+        changeCameraPreviewSize();
 
         final SurfaceTexture oldSurfaceTexture = mSurfaceTexture;
         mSurfaceTexture = new SurfaceTexture(createTexture());
@@ -274,14 +270,30 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mIsStarting = false;
     }
 
-/*
-    private void changeCameraParameters() {
-        @SuppressWarnings("deprecation")
+    @SuppressWarnings("deprecation")
+    private void changeCameraPreviewSize() {
         final Camera.Parameters cameraParameters = mCamera.getParameters();
-        cameraParameters.setPreviewSize(640, 480); //todo: ????????????
+
+        List<Camera.Size> sizes = cameraParameters.getSupportedPreviewSizes();
+        String sizesText = "";
+        for (final Camera.Size size : sizes) {
+            if (!sizesText.equals("")) {
+                sizesText += ", ";
+            }
+            sizesText += getSizeDescription(size.width, size.height);
+        }
+        Log.d(TAG, "Preview sizes: [" + sizesText + "]");
+        Log.d(TAG, "CardboardView size: " + getSizeDescription(mCardboardView.getWidth(), mCardboardView.getHeight()));
+        final Camera.Size defaultPreviewSize = cameraParameters.getPreviewSize();
+        Log.d(TAG, "Default preview size: " + getSizeDescription(defaultPreviewSize.width, defaultPreviewSize.height));
+        //todo find and set the best resolution
+//        cameraParameters.setPreviewSize(640, 480);
         mCamera.setParameters(cameraParameters);
     }
-*/
+
+    private static String getSizeDescription(final int width, final int height) {
+        return String.format("%dx%d(%.2f)", width, height, (float) width / height);
+    }
 
     @SuppressWarnings("deprecation")
     private Camera openFacingBackCamera() {
@@ -345,16 +357,16 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         if (vertexShader == 0) {
             return 0;
         }
-        int pixelShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderResId);
-        if (pixelShader == 0) {
+        int fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fragmentShaderResId);
+        if (fragmentShader == 0) {
             return 0;
         }
         int program = GLES20.glCreateProgram();
         if (program != 0) {
             GLES20.glAttachShader(program, vertexShader);
-            checkGlError("glAttachShader");
-            GLES20.glAttachShader(program, pixelShader);
-            checkGlError("glAttachShader");
+            checkGlError("createProgram [attach vertex shader]");
+            GLES20.glAttachShader(program, fragmentShader);
+            checkGlError("createProgram [attach fragment shader]");
             GLES20.glLinkProgram(program);
             int[] linkStatus = new int[1];
             GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0);
