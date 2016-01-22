@@ -80,7 +80,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     }
 
     public synchronized void start() {
-        Log.d(TAG, "VrStereoRenderer.start.begin");
         if (mIsReady || mIsStarting) {
             return;
         }
@@ -90,11 +89,9 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mLastRightEyeFrameCount = 0;
 
         mIsStarting = true;
-        Log.d(TAG, "VrStereoRenderer.start.end");
     }
 
     public synchronized void stop() {
-        Log.d(TAG, "VrStereoRenderer.stop.begin");
         if (!mIsReady) {
             return;
         }
@@ -115,18 +112,15 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mSurfaceTexture.release();
 
         Log.d(TAG, "Camera.release");
-        Log.d(TAG, "VrStereoRenderer.stop.end");
     }
 
     @Override
     public void onSurfaceCreated(EGLConfig eglConfig) {
-        Log.d(TAG, "VrStereoRenderer.onSurfaceCreated");
         mSurfaceChanged = false;
     }
 
     @Override
     public void onSurfaceChanged(int width, int height) {
-        Log.d(TAG, "VrStereoRenderer.onSurfaceChanged");
         mViewWidth = width;
         mViewHeight = height;
         mSurfaceChanged = true;
@@ -138,7 +132,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
     @Override
     public void onDrawEye(Eye eye) {
-        Log.d(TAG, "VrStereoRenderer.onDrawEye.begin (mIsReady=" + mIsReady + ", mIsStarting=" + mIsStarting);
         if (!mIsReady && mIsStarting) {
             doStart();
         }
@@ -151,7 +144,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
         final int cameraFrameCount = mCameraFrameCount.get();
         if ((mLastLeftEyeFrameCount != cameraFrameCount) || (mLastRightEyeFrameCount != cameraFrameCount)) {
-            Log.d(TAG, "VrStereoRenderer.onDrawEye.draw");
 
             GLES20.glUseProgram(mGLProgram);
             checkGlError("draw eye [glUseProgram]");
@@ -202,7 +194,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     @Override
     public void onRendererShutdown() {
         // Doesn't work :(
-        Log.d(TAG, "VrStereoRenderer.onRendererShutdown");
+        Log.d(TAG, "onRendererShutdown");
 
         mSurfaceChanged = false;
     }
@@ -254,7 +246,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
                 mCameraFrameCount.incrementAndGet();
                 if (mCardboardView != null) {
-                    Log.d(TAG, "SurfaceTexture.onFrameAvailable");
                     mCardboardView.requestRender();
                 }
             }
