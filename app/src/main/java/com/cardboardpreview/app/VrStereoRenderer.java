@@ -114,6 +114,11 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         Log.d(TAG, "Camera.release");
     }
 
+    @SuppressWarnings("unused")
+    public synchronized boolean isStarted() {
+        return mIsReady;
+    }
+
     @Override
     public void onSurfaceCreated(EGLConfig eglConfig) {
         mSurfaceChanged = false;
