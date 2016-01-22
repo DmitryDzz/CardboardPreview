@@ -80,6 +80,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     }
 
     public synchronized void start() {
+        Log.d(TAG, "VrStereoRenderer.start.begin");
         if (mIsReady || mIsStarting) {
             return;
         }
@@ -89,10 +90,11 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mLastRightEyeFrameCount = 0;
 
         mIsStarting = true;
-        mSurfaceChanged = false;
+        Log.d(TAG, "VrStereoRenderer.start.end");
     }
 
     public synchronized void stop() {
+        Log.d(TAG, "VrStereoRenderer.stop.begin");
         if (!mIsReady) {
             return;
         }
@@ -113,15 +115,18 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mSurfaceTexture.release();
 
         Log.d(TAG, "Camera.release");
+        Log.d(TAG, "VrStereoRenderer.stop.end");
     }
 
     @Override
     public void onSurfaceCreated(EGLConfig eglConfig) {
+        Log.d(TAG, "VrStereoRenderer.onSurfaceCreated");
         mSurfaceChanged = false;
     }
 
     @Override
     public void onSurfaceChanged(int width, int height) {
+        Log.d(TAG, "VrStereoRenderer.onSurfaceChanged");
         mViewWidth = width;
         mViewHeight = height;
         mSurfaceChanged = true;
@@ -133,11 +138,12 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
     @Override
     public void onDrawEye(Eye eye) {
+        Log.d(TAG, "VrStereoRenderer.onDrawEye.begin (mIsReady=" + mIsReady + ", mIsStarting=" + mIsStarting);
         if (!mIsReady && mIsStarting) {
             doStart();
         }
 
-        if (!(mIsReady  && mSurfaceChanged)) {
+        if (!(mIsReady && mSurfaceChanged)) {
             GLES20.glClearColor(0, 0, 0, 0);
             checkGlError("draw eye [glClearColor]");
             return;
@@ -145,21 +151,18 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
         final int cameraFrameCount = mCameraFrameCount.get();
         if ((mLastLeftEyeFrameCount != cameraFrameCount) || (mLastRightEyeFrameCount != cameraFrameCount)) {
+            Log.d(TAG, "VrStereoRenderer.onDrawEye.draw");
+
             GLES20.glUseProgram(mGLProgram);
             checkGlError("draw eye [glUseProgram]");
 
             mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mTransformMatrix);
-//Log.d(TAG, "mTransformMatrix: " + Arrays.toString(mTransformMatrix));
             GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mTransformMatrix, 0);
             checkGlError("draw eye [glUniformMatrix4fv #1]");
-//            GLES20.glUniformMatrix4fv(mTransformHandle, 1, false, mRotateMatrix, 0); //todo delete
             GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, mRotateMatrix, 0);
 //            GLES20.glUniformMatrix4fv(mRotateHandle, 1, false, eye.getPerspective(Z_NEAR, Z_FAR), 0);
             checkGlError("draw eye [glUniformMatrix4fv #2]");
-
-//        GLES20.glDisable(GLES20.GL_BLEND);
-//        checkGlError("setup #1");
 
             GLES20.glVertexAttribPointer(mTexCoordHandle, 2, GLES20.GL_FLOAT,
                     false, 0, mTextureVertices);
@@ -199,6 +202,8 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     @Override
     public void onRendererShutdown() {
         // Doesn't work :(
+        Log.d(TAG, "VrStereoRenderer.onRendererShutdown");
+
         mSurfaceChanged = false;
     }
 
@@ -249,7 +254,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
                 mCameraFrameCount.incrementAndGet();
                 if (mCardboardView != null) {
-//                    Log.d(TAG, "onFrameAvailable " + Thread.currentThread().getId());
+                    Log.d(TAG, "SurfaceTexture.onFrameAvailable");
                     mCardboardView.requestRender();
                 }
             }
