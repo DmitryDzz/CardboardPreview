@@ -65,7 +65,8 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mContext = context;
         mCardboardView = cardboardView;
 
-        final float[] textureVertices = { 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+//        final float[] textureVertices = { 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
+        final float[] textureVertices = { 0.75f, 1.0f, 0.25f, 1.0f, 0.25f, 0.0f, 0.75f, 0.0f };
         mTextureVertices = ByteBuffer.allocateDirect(textureVertices.length *
                 FLOAT_SIZE_BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
         mTextureVertices.put(textureVertices).position(0);
