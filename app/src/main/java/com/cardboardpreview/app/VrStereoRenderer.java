@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Created by dmitrydzz on 18.01.16.
  */
 public class VrStereoRenderer implements CardboardView.StereoRenderer {
-    private static final String TAG = "++++"; //todo: Change ++++ to regular name
+    private static final String TAG = "VrStereoRenderer";
     private final static int FLOAT_SIZE_BYTES = 4;
     private static final int GL_TEXTURE_EXTERNAL_OES = 0x8D65;
 //    private static final float Z_NEAR = 0.1f;
