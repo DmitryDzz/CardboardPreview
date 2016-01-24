@@ -65,11 +65,11 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mContext = context;
         mCardboardView = cardboardView;
 
-//        final float[] textureVertices = { 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
-        final float[] textureVertices = { 0.75f, 1.0f, 0.25f, 1.0f, 0.25f, 0.0f, 0.75f, 0.0f };
+        final float[] textureVertices = { 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f };
         mTextureVertices = ByteBuffer.allocateDirect(textureVertices.length *
                 FLOAT_SIZE_BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
         mTextureVertices.put(textureVertices).position(0);
+        // WARNING! mTextureVertices is defined again later in changeCameraPreviewSize.
 
         final float[] quadVertices = { 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f };
         mQuadVertices = ByteBuffer.allocateDirect(quadVertices.length *
@@ -129,6 +129,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     public void onSurfaceChanged(int width, int height) {
         mViewWidth = width;
         mViewHeight = height;
+        Log.d(TAG, "mViewWidth=" + mViewWidth + ", mViewHeight=" + mViewHeight);
         mSurfaceChanged = true;
     }
 
@@ -241,8 +242,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         GLES20.glUseProgram(mGLProgram);
         checkGlError("initialization #1");
 
-        GLES20.glViewport(0, 0, mViewWidth, mViewHeight); //?????????????
-
         changeCameraPreviewSize();
 
         final SurfaceTexture oldSurfaceTexture = mSurfaceTexture;
@@ -284,14 +283,45 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             }
             sizesText += getSizeDescription(size.width, size.height);
         }
+
         Log.d(TAG, "Preview sizes: [" + sizesText + "]");
         Log.d(TAG, "CardboardView size: " + getSizeDescription(mCardboardView.getWidth(), mCardboardView.getHeight()));
-        final Camera.Size defaultPreviewSize = cameraParameters.getPreviewSize();
-        Log.d(TAG, "Default preview size: " + getSizeDescription(defaultPreviewSize.width, defaultPreviewSize.height));
-        //todo find and set the best resolution
-//        cameraParameters.setPreviewSize(640, 480);
+        Log.d(TAG, "Eye viewport size: " + getSizeDescription(mViewWidth, mViewHeight));
+
+        //todo find and set the best resolution closest to 1.33 ratio (or better the smallest)
+        cameraParameters.setPreviewSize(1600, 1200); //1.33
+//        cameraParameters.setPreviewSize(1024, 768);  //1.33
+//        cameraParameters.setPreviewSize(640, 480);     //1.33
+//        cameraParameters.setPreviewSize(352, 288);   //1.22
+//        cameraParameters.setPreviewSize(176, 144);   //1.22
         mCamera.setParameters(cameraParameters);
+
+
+        // Eye pixel ratio and camera preview pixel ratio are not the same.
+        // That's why we cannot use all of the preview area.
+        final float eyeRatio = (float) mViewWidth / mViewHeight;
+        final float previewRatio = 4f / 3f;
+        changeTextureVertices(eyeRatio, previewRatio);
     }
+
+    private void changeTextureVertices(final float eyeRatio, final float previewRatio) {
+        float X1, X2, Y1, Y2;
+        if (previewRatio >= eyeRatio) {
+            X1 = 0.5f - 0.5f * eyeRatio / previewRatio;
+            X2 = 1.0f - X1;
+            Y1 = 0.0f;
+            Y2 = 1.0f;
+        } else {
+            X1 = 0.0f;
+            X2 = 1.0f;
+            Y1 = 0.5f - 0.5f * previewRatio / eyeRatio;
+            Y2 = 1.0f - Y1;
+        }
+        final float[] textureVertices = { X2, Y2, X1, Y2, X1, Y1, X2, Y1 };
+        mTextureVertices.clear();
+        mTextureVertices.put(textureVertices).position(0);
+    }
+
 
     private static String getSizeDescription(final int width, final int height) {
         return String.format("%dx%d(%.2f)", width, height, (float) width / height);
