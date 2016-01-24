@@ -273,11 +273,15 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
 
     @SuppressWarnings("deprecation")
     private void changeCameraPreviewSize() {
+        final CameraPreviewSizes previewSizes = new CameraPreviewSizes();
+
         final Camera.Parameters cameraParameters = mCamera.getParameters();
 
         List<Camera.Size> sizes = cameraParameters.getSupportedPreviewSizes();
         String sizesText = "";
+        previewSizes.clear();
         for (final Camera.Size size : sizes) {
+            previewSizes.add(size.width, size.height);
             if (!sizesText.equals("")) {
                 sizesText += ", ";
             }
@@ -288,20 +292,23 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         Log.d(TAG, "CardboardView size: " + getSizeDescription(mCardboardView.getWidth(), mCardboardView.getHeight()));
         Log.d(TAG, "Eye viewport size: " + getSizeDescription(mViewWidth, mViewHeight));
 
-        //todo find and set the best resolution closest to 1.33 ratio (or better the smallest)
-        cameraParameters.setPreviewSize(1600, 1200); //1.33
-//        cameraParameters.setPreviewSize(1024, 768);  //1.33
-//        cameraParameters.setPreviewSize(640, 480);     //1.33
-//        cameraParameters.setPreviewSize(352, 288);   //1.22
-//        cameraParameters.setPreviewSize(176, 144);   //1.22
-        mCamera.setParameters(cameraParameters);
-
-
-        // Eye pixel ratio and camera preview pixel ratio are not the same.
-        // That's why we cannot use all of the preview area.
         final float eyeRatio = (float) mViewWidth / mViewHeight;
-        final float previewRatio = 4f / 3f;
-        changeTextureVertices(eyeRatio, previewRatio);
+        final CameraPreviewSizes.CameraPreviewSize bestSize = previewSizes.getBestSize(eyeRatio);
+        if (bestSize != null) {
+            Log.d(TAG, "Best preview size: " + getSizeDescription(bestSize.getWidth(), bestSize.getHeight()));
+            cameraParameters.setPreviewSize(bestSize.getWidth(), bestSize.getHeight());
+    //        cameraParameters.setPreviewSize(1600, 1200); //1.33
+    //        cameraParameters.setPreviewSize(1024, 768);  //1.33
+    //        cameraParameters.setPreviewSize(640, 480);     //1.33
+    //        cameraParameters.setPreviewSize(352, 288);   //1.22
+    //        cameraParameters.setPreviewSize(176, 144);   //1.22
+            mCamera.setParameters(cameraParameters);
+
+
+            // Eye pixel ratio and camera preview pixel ratio are not the same.
+            // That's why we cannot use all of the preview area.
+            changeTextureVertices(eyeRatio, bestSize.getRatio());
+        }
     }
 
     private void changeTextureVertices(final float eyeRatio, final float previewRatio) {
