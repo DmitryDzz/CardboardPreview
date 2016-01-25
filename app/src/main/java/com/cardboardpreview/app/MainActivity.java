@@ -6,7 +6,7 @@ import com.google.vrtoolkit.cardboard.CardboardActivity;
 import com.google.vrtoolkit.cardboard.CardboardView;
 
 public class MainActivity extends CardboardActivity {
-
+    private static final boolean VR_MODE = false;
     private VrStereoRenderer mStereoRenderer;
 
     @Override
@@ -15,6 +15,9 @@ public class MainActivity extends CardboardActivity {
         setContentView(R.layout.activity_main);
 
         final CardboardView cardboardView = (CardboardView) findViewById(R.id.cardboard_view);
+
+        cardboardView.setVRModeEnabled(VR_MODE);
+        cardboardView.setSettingsButtonEnabled(VR_MODE);
 
         mStereoRenderer = new VrStereoRenderer(this, cardboardView);
 
