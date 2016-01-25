@@ -43,16 +43,36 @@ public class CameraPreviewSizes {
             mSizes.remove(0);
             mSizes.remove(0);
         }
-
-        // Find the best 4:3 resolution:
-        for (CameraPreviewSize size : mSizes) {
-            if (MathFloatUtils.equals(size.getRatio(), 4f / 3f, 0.01f)) {
-                return size;
+        // Remove the poorest resolutions:
+        if (getCount() > 10) {
+            int i = 0;
+            while (i < mSizes.size()) {
+                if (mSizes.get(i).getWidth() < 640) {
+                    mSizes.remove(i);
+                } else {
+                    i++;
+                }
             }
         }
 
-        // If there's no 4:3 then return the best one:
-        return get(0);
+        // Find the best resolution with ratio nearest to eyeRatio:
+        int bestSizeIndex = -1;
+        float bestDifference = 0;
+        for (int i = 0; i < mSizes.size(); i++) {
+            final CameraPreviewSize size = mSizes.get(i);
+            final float difference = Math.abs(size.getRatio() - eyeRatio);
+            if (bestSizeIndex == -1) {
+                bestSizeIndex = 0;
+                bestDifference = difference;
+            } else {
+                if (difference < bestDifference) {
+                    bestSizeIndex = i;
+                    bestDifference = difference;
+                }
+            }
+        }
+
+        return bestSizeIndex == -1 ? null : get(bestSizeIndex);
     }
 
     private static final Comparator<CameraPreviewSize> mComparatorSquare = new Comparator<CameraPreviewSize>() {
