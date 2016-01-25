@@ -29,8 +29,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     private static final String TAG = "VrStereoRenderer";
     private final static int FLOAT_SIZE_BYTES = 4;
     private static final int GL_TEXTURE_EXTERNAL_OES = 0x8D65;
-//    private static final float Z_NEAR = 0.1f;
-//    private static final float Z_FAR = 100.0f;
 
     private volatile boolean mIsStarting;
     private volatile boolean mIsReady;
@@ -69,7 +67,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         mTextureVertices = ByteBuffer.allocateDirect(textureVertices.length *
                 FLOAT_SIZE_BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer();
         mTextureVertices.put(textureVertices).position(0);
-        // WARNING! mTextureVertices is defined again later in changeCameraPreviewSize.
+        // WARNING! mTextureVertices buffer is defined again later in changeTextureVertices() method.
 
         final float[] quadVertices = { 1.0f, 1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f };
         mQuadVertices = ByteBuffer.allocateDirect(quadVertices.length *
@@ -129,7 +127,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     public void onSurfaceChanged(int width, int height) {
         mViewWidth = width;
         mViewHeight = height;
-        Log.d(TAG, "mViewWidth=" + mViewWidth + ", mViewHeight=" + mViewHeight);
         mSurfaceChanged = true;
     }
 
@@ -141,35 +138,22 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     public void onDrawEye(Eye eye) {
         if (!mIsReady && mIsStarting) {
             final Viewport viewport = eye.getViewport();
-            //todo: How can I get an eye size? mViewWidth and mViewHeight are wrong for tablets.
-            // eye.getViewport()'s width and height values are strange.
-            // 1. Do I need mViewWidth and mViewHeight?
-            // 2. Do I need arguments in doStart()?
-            final int w = viewport.width;
-            final int h = viewport.height;
-            doStart(w, h);
+            final int width = viewport.width;
+            final int height = viewport.height;
+            doStart(width, height);
         }
 
-//        Log.d(TAG, "onDraEye #1");
-
         if (!(mIsReady && mSurfaceChanged)) {
-//            GLES20.glClearColor(0, 0, 0, 0);
-//            checkGlError("draw eye [glClearColor]");
+            GLES20.glClearColor(0, 0, 0, 0);
+            checkGlError("draw eye [glClearColor]");
             return;
         }
 
         final int cameraFrameCount = mCameraFrameCount.get();
-        if ((mLastLeftEyeFrameCount != cameraFrameCount) || (mLastRightEyeFrameCount != cameraFrameCount)) {
-
-//            GLES20.glViewport(0, 0, mViewWidth, mViewHeight);
-//            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
-//            GLES20.glEnable(GLES20.GL_DEPTH_TEST);
-//        GLES20.glEnable(GLES20.GL_TEXTURE);
-//        GLES20.glEnable(GLES20.GL_TEXTURE_2D);
-//        GLES20.glDepthFunc(GLES20.GL_LEQUAL);
-//        GLES20.glClearDepthf(1.0F);
-
-            Log.d(TAG, "onDraEye #2");
+        if ((mLastLeftEyeFrameCount != cameraFrameCount) ||
+            (mLastRightEyeFrameCount != cameraFrameCount) ||
+            (!mCardboardView.getVRMode())) { // getVRMode should be removed. There's a flickering bug in monocular mode.
+                                             // Missed onDrawEye methods cause black screen (only in monocular). So it's a fix.
 
             GLES20.glUseProgram(mGLProgram);
             checkGlError("draw eye [glUseProgram]");
@@ -242,7 +226,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         return texture[0];
     }
 
-    private void doStart(final int eyeWidth, final int eyeHeight) {
+    private void doStart(final int eyeViewportWidth, final int eyeViewportHeight) {
         @SuppressWarnings("deprecation")
         final Camera camera = openFacingBackCamera();
         if (camera == null) {
@@ -260,14 +244,13 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         GLES20.glUseProgram(mGLProgram);
         checkGlError("initialization #1");
 
-        changeCameraPreviewSize(eyeWidth, eyeHeight);
+        changeCameraPreviewSize(eyeViewportWidth, eyeViewportHeight);
 
         final SurfaceTexture oldSurfaceTexture = mSurfaceTexture;
         mSurfaceTexture = new SurfaceTexture(createTexture());
         mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
             @Override
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-                Log.d(TAG, "onFrameAvailable #1");
                 mCameraFrameCount.incrementAndGet();
                 if (mCardboardView != null) {
                     mCardboardView.requestRender();
@@ -291,7 +274,7 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
     }
 
     @SuppressWarnings("deprecation")
-    private void changeCameraPreviewSize(final int eyeWidth, final int eyeHeight) {
+    private void changeCameraPreviewSize(final int eyeViewportWidth, final int eyeViewportHeight) {
         final CameraPreviewSizes previewSizes = new CameraPreviewSizes();
 
         final Camera.Parameters cameraParameters = mCamera.getParameters();
@@ -310,21 +293,15 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         Log.d(TAG, "Preview sizes: [" + sizesText + "]");
         Log.d(TAG, "CardboardView size: " + getSizeDescription(mCardboardView.getWidth(), mCardboardView.getHeight()));
         Log.d(TAG, "CardboardView screen size: " + getSizeDescription(mCardboardView.getScreenParams().getWidth(), mCardboardView.getScreenParams().getHeight()));
-        Log.d(TAG, "Viewport size: " + getSizeDescription(mViewWidth, mViewHeight));
-        Log.d(TAG, "Eye viewport size: " + getSizeDescription(eyeWidth, eyeHeight));
+        Log.d(TAG, "onSurfaceChanged viewport: " + getSizeDescription(mViewWidth, mViewHeight));
+        Log.d(TAG, "Eye viewport size: " + getSizeDescription(eyeViewportWidth, eyeViewportHeight));
 
-        final float eyeRatio = (float) eyeWidth / eyeHeight;
+        final float eyeRatio = (float) eyeViewportWidth / eyeViewportHeight;
         final CameraPreviewSizes.CameraPreviewSize bestSize = previewSizes.getBestSize(eyeRatio);
         if (bestSize != null) {
             Log.d(TAG, "Best preview size: " + getSizeDescription(bestSize.getWidth(), bestSize.getHeight()));
             cameraParameters.setPreviewSize(bestSize.getWidth(), bestSize.getHeight());
-    //        cameraParameters.setPreviewSize(1600, 1200); //1.33
-    //        cameraParameters.setPreviewSize(1024, 768);  //1.33
-    //        cameraParameters.setPreviewSize(640, 480);     //1.33
-    //        cameraParameters.setPreviewSize(352, 288);   //1.22
-    //        cameraParameters.setPreviewSize(176, 144);   //1.22
             mCamera.setParameters(cameraParameters);
-
 
             // Eye pixel ratio and camera preview pixel ratio are not the same.
             // That's why we cannot use all of the preview area.
@@ -408,7 +385,6 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
         //noinspection LoopStatementThatDoesntLoop
         while ((error = GLES20.glGetError()) != GLES20.GL_NO_ERROR) {
             Log.e(TAG, op + ": glError " + error);
-//            throw new RuntimeException(op + ": glError " + error);
         }
     }
 
