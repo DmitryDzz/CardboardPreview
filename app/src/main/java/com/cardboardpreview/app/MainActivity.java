@@ -19,7 +19,6 @@ public class MainActivity extends CardboardActivity {
 
         cardboardView.setVRModeEnabled(VR_MODE);
         cardboardView.setSettingsButtonEnabled(VR_MODE);
-        cardboardView.setRestoreGLStateEnabled(false);
 
         mStereoRenderer = new VrStereoRenderer(this, cardboardView);
 
