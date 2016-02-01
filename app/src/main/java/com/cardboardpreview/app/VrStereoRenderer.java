@@ -252,9 +252,9 @@ public class VrStereoRenderer implements CardboardView.StereoRenderer {
             @Override
             public void onFrameAvailable(SurfaceTexture surfaceTexture) {
                 mCameraFrameCount.incrementAndGet();
-                if (mCardboardView != null) {
-                    mCardboardView.requestRender();
-                }
+//                if (mCardboardView != null) {
+//                    mCardboardView.requestRender();
+//                }
             }
         });
         if (oldSurfaceTexture != null) {
